@@ -1,0 +1,10 @@
+<Files "p2p.json">
+    Order allow,deny
+    Allow from all
+    Require all granted
+</Files>
+
+<FilesMatch "\.(php|txt|log)$">
+    Order deny,allow
+    Deny from all
+</FilesMatch>
