@@ -1,0 +1,15 @@
+<Files ~ "\.(css|js|png|jpg|jpeg|gif|svg|ico)$">
+    Order allow,deny
+    Allow from all
+    Require all granted
+</Files>
+
+<Files ~ "\.php$">
+    Order deny,allow
+    Deny from all
+</Files>
+
+<Files "index.php">
+    Order allow,deny
+    Allow from all
+</Files>
