@@ -9,7 +9,7 @@ Description: An open-source Wordpress plugin that shows Bitcoin P2Ps which accep
 Version: 0.0.1
 Requires at least: 5.8
 Requires PHP: 7.4
-Author: Pedro, MZero
+Author: Pedro, MZero, Caioqf
 License: GPLv2 or later
 Text Domain: depixplugin
 */
