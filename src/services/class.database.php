@@ -36,11 +36,15 @@ class DepixTablesWP
     {
         global $wpdb;
         $table = $wpdb->prefix . 'depixwp_transactions';
+        $tx_id = $data['id'] ?? $data['qrId'] ?? '';
+        if ($tx_id === '') {
+            error_log('[Depix][DB][Warn] storeTransaction sem id/qrId no payload.');
+        }
         $wpdb->insert(
             $table,
             [
-                'tx_id' => $data['id'] ?? '',
-                'amount_cents' => $amountInCents,
+                'tx_id' => $tx_id,
+                'amount_cents' => isset($data['amountInCents']) ? (int)$data['amountInCents'] : (isset($data['valueInCents']) ? (int)$data['valueInCents'] : (int)$amountInCents),
                 'status' => $data['status'] ?? 'created',
                 'async' => $async ? 1 : 0,
                 'qr_copy_paste' => $data['qrCopyPaste'] ?? null,
@@ -72,6 +76,15 @@ class DepixTablesWP
         global $wpdb;
         $table = $wpdb->prefix . 'depixwp_transactions';
 
+        // Normaliza identificador (id ou qrId)
+        if (!isset($data['id']) && isset($data['qrId'])) {
+            $data['id'] = $data['qrId'];
+        }
+        if (empty($data['id'])) {
+            error_log('[Depix][DB][Warn] updateTransaction sem id/qrId.');
+            return false;
+        }
+
         $fields = [];
         $formats = [];
 
@@ -79,8 +92,8 @@ class DepixTablesWP
             $fields['status'] = sanitize_text_field($data['status']);
             $formats[] = '%s';
         }
-        if (isset($data['amountInCents'])) {
-            $fields['amount_cents'] = (int)$data['amountInCents'];
+        if (isset($data['amountInCents']) || isset($data['valueInCents'])) {
+            $fields['amount_cents'] = isset($data['amountInCents']) ? (int)$data['amountInCents'] : (int)$data['valueInCents'];
             $formats[] = '%d';
         }
 

@@ -25,9 +25,20 @@ class EulenWebhook {
     public function handleRequest(WP_REST_Request $request) {
         $rawData = $request->get_body();
         $data = json_decode($rawData, true);
-        if(!is_array($data) || empty($data['id'])) {
+        if(!is_array($data)) {
             return new WP_REST_Response(['error' => 'invalid_payload'], 400);
         }
+
+        // Normaliza identificador: alguns webhooks enviam qrId em vez de id
+        if (empty($data['id']) && !empty($data['qrId'])) {
+            $data['id'] = $data['qrId'];
+        }
+        if (empty($data['id'])) {
+            return new WP_REST_Response(['error' => 'missing_id'], 400);
+        }
+
+        // Log básico (pode ser removido em produção)
+        error_log('[Depix][Webhook] Payload: ' . substr($rawData,0,1000));
 
         $token = EulenPanel::get_plain_token();
         if ($token) {
@@ -39,6 +50,11 @@ class EulenWebhook {
         }
 
         $updated = $this->database->updateTransaction($data);
+        if (!$updated) {
+            // Tenta inserção se não existir (caso webhook chegue antes do registro local)
+            $this->database->storeTransaction($data, 0, $data['valueInCents'] ?? ($data['amountInCents'] ?? 0));
+            $updated = true;
+        }
 
         return new WP_REST_Response([
             'ok' => (bool)$updated,

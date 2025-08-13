@@ -101,7 +101,7 @@ class DepixShortcodes {
 		if (!$status) {
 			wp_send_json(['status' => null]);
 		}
-		$finals = ['paid','completed','confirmed','success'];
+		$finals = ['paid','completed','confirmed','success', 'depix_sent'];
 		wp_send_json([
 			'status' => $status,
 			'final' => in_array($status, $finals, true),
