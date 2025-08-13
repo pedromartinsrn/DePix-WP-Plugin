@@ -21,7 +21,6 @@ class EulenService {
                 $plain = EulenPanel::static_decrypt_struct($decoded);
                 if (is_string($plain) && trim($plain)!=='') {
                     $this->token = trim($plain);
-                    error_log('[Depix][Auth] Decriptação tardia aplicada (len '.strlen($this->token).').');
                 } else {
                     error_log('[Depix][Auth][Err] Falha ao decriptar token cifrado.');
                     return;
@@ -47,9 +46,7 @@ class EulenService {
             } else {
                 error_log('[Depix][Token] Nenhum token salvo.');
             }
-        } else {
-            error_log('[Depix][Token] Token carregado (len '.strlen($this->token).').');
-        }
+        } 
         
     $this->ensureAuthToken();
         $this->database = new DepixTablesWP();
@@ -68,15 +65,13 @@ class EulenService {
         } else {
             error_log('[Depix][Ping] Sem token plano disponível; Authorization não enviado.');
         }
-        error_log('[Depix][Ping][Req headers] '. print_r($headers, true));
+        
         $resp = $this->helpers->get('/ping', $headers);
         if (is_wp_error($resp)) {
             error_log('[Depix][Ping] WP_Error: '.$resp->get_error_message());
             return $resp;
         }
-        error_log('[Depix][Ping][Debug] URL: '.$url.' Code: '.wp_remote_retrieve_response_code($resp));
-        $rh = wp_remote_retrieve_headers($resp);
-        error_log('[Depix][Ping][Debug] Resp headers: '.print_r($rh, true));
+        
         return $resp;
     }
 
@@ -92,7 +87,6 @@ class EulenService {
         ));
 
         if (is_wp_error($response)) {
-            error_log('Depix deposit request failed: ' . $response->get_error_message());
             return new WP_Error('deposit_failed', 'Deposit request failed', array('status' => 500));
         }
 

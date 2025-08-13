@@ -8,7 +8,6 @@ class EulenRequest {
 
     public function __construct() {
         $this->api_url = 'https://depix.eulen.app/api';
-        error_log('EulenRequest initialized with API URL: ' . $this->api_url);
     }
 
     public function setAuthToken(?string $token): void

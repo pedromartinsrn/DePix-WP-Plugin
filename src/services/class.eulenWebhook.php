@@ -38,8 +38,6 @@ class EulenWebhook {
             return new WP_REST_Response(['error' => 'missing_id'], 400);
         }
 
-        error_log('[Depix][Webhook] Payload: ' . substr($rawData,0,1000));
-
 
         $updated = $this->database->updateTransaction($data);
         if (!$updated) {

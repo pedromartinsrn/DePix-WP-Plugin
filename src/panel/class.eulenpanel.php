@@ -115,7 +115,6 @@ if (!class_exists('EulenPanel')) {
                         
                         $headers = wp_remote_retrieve_headers($resp);
                         
-                        error_log(sprintf('[Depix][Ping] HTTP %d body:"%s"', $code, $body_trim === '' ? '[vazio]' : $body_trim));
                         if ($code >= 200 && $code < 300) {
                             add_settings_error(
                                 'depix_ping',
