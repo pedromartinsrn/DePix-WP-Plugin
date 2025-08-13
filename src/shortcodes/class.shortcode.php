@@ -50,7 +50,8 @@ class DepixShortcodes {
 								];
 							} else {
 								$error = 'Resposta inesperada da API.';
-                                error_log('Depix deposit API response: ' . $resp);
+                                $response_summary = isset($json['response']) ? json_encode(array_keys($json['response'])) : 'No response keys';
+                                error_log('Depix deposit API unexpected response. Keys: ' . $response_summary);
 							}
 						}
 					}
