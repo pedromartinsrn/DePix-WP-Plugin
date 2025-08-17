@@ -70,15 +70,15 @@ class DepixTablesWP
 
     private function sanitizeData(array $data, int $amountInCents): array
     {
-        error_log('[Depix][DB] Sanitizing data for transaction storage.' . print_r($data, true));
         $idRaw = $data['qrId'] ?? ($data['id'] ?? '');
         $tx_id = $this->clamp(sanitize_text_field((string)$idRaw), 64);
+        error_log('[Depix][DB] Sanitizing data for transaction storage. tx_id: ' . $tx_id);
         $status = isset($data['status']) ? sanitize_key((string)$data['status']) : 'created';
         $amount = isset($data['amountInCents']) ? (int)$data['amountInCents'] : (isset($data['valueInCents']) ? (int)$data['valueInCents'] : (int)$amountInCents);
         if ($amount < 0) { $amount = 0; }
         $qr_copy = isset($data['qrCopyPaste']) ? sanitize_textarea_field((string)$data['qrCopyPaste']) : null;
         $qr_img  = isset($data['qrImageUrl']) ? esc_url_raw((string)$data['qrImageUrl']) : null;
-        $metaJson = isset($data['meta']) ? wp_json_encode($data['meta']) : wp_json_encode($data);
+        $metaJson = isset($data['meta']) ? wp_json_encode($data['meta']) : wp_json_encode([]);
         $metaJson = $this->clamp((string)$metaJson, 65000);
 
         return [
@@ -152,7 +152,7 @@ class DepixTablesWP
         if ($updated === 0) {
             $exists = (bool) $wpdb->get_var($wpdb->prepare("SELECT 1 FROM $table WHERE tx_id = %s LIMIT 1", $firstLookup));
             if ($exists) {
-                $updated = 1; 
+                $updated = 0; 
             }
         }
 
@@ -167,7 +167,7 @@ class DepixTablesWP
             if ($updated === 0) {
                 $exists = (bool) $wpdb->get_var($wpdb->prepare("SELECT 1 FROM $table WHERE tx_id = %s LIMIT 1", $secondLookup));
                 if ($exists) {
-                    $updated = 1;
+                    $updated = 0;
                 }
             }
         }
