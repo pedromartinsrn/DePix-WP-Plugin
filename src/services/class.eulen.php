@@ -26,11 +26,7 @@ class EulenService {
                     return;
                 }
             } else {
-                    error_log('[Depix][Auth][Err] Falha ao decrypt token cifrado.');
-                    return;
-                }
-            } else {
-                error_log('[Depix][Auth][Err] Estrutura cifrada inválida ao tentar decrypt.');
+                error_log('[Depix][Auth][Err] Falha ao decrypt token cifrado.');
                 return;
             }
         }
@@ -79,14 +75,26 @@ class EulenService {
         return $resp;
     }
 
-    public function deposit($amountInCents) {
+    public function deposit($amountInCents, array $opts = array()) {
         $this->ensureAuthToken();
         if (empty($this->token)) {
             return new WP_Error('depix_no_token', 'Token ausente para deposit');
         }
-        $response = $this->helpers->post('/deposit', array(
+        $payload = array(
             'amountInCents' => $amountInCents,
-        ), array(
+        );
+
+        if (isset($opts['liquidAddress']) && is_string($opts['liquidAddress']) && trim($opts['liquidAddress']) !== '') {
+            $payload['liquidAddress'] = trim($opts['liquidAddress']);
+        }
+        if (isset($opts['asset']) && is_string($opts['asset']) && trim($opts['asset']) !== '') {
+            $payload['asset'] = trim($opts['asset']);
+        }
+        if (isset($opts['metadata']) && is_array($opts['metadata'])) {
+            $payload['metadata'] = $opts['metadata'];
+        }
+
+        $response = $this->helpers->post('/deposit', $payload, array(
             'Content-Type' => 'application/json'
         ));
 

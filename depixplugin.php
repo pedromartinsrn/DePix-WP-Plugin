@@ -1,18 +1,7 @@
 <?php
-/**
-* @package Depix WP Plugin
-*/
 
-/*
-Plugin Name: Depix WP Plugin
-Description: An open-source Wordpress plugin that shows Bitcoin P2Ps which accept the Depix method of payment.
-Version: 0.0.1
-Requires at least: 5.8
-Requires PHP: 7.4
-Author: Pedro, MZero, Caioqf
-License: GPLv2 or later
-Text Domain: depixplugin
-*/
+
+
 
 if ( ! function_exists( 'add_action' ) ) {
 	echo 'You cannot access this file directly.';
@@ -26,6 +15,11 @@ register_activation_hook( __FILE__, array( 'DepixPlugin', 'plugin_activation' ) 
 register_deactivation_hook( __FILE__, array( 'DepixPlugin', 'plugin_deactivation' ) );
 
 require_once DEPIXPLUGIN_PLUGIN_DIR . 'class.depixplugin.php';
+
+function depixplugin_load_textdomain() {
+    load_plugin_textdomain( 'depixplugin', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+}
+add_action( 'plugins_loaded', 'depixplugin_load_textdomain' );
 
 function depixplugin_enqueue_scripts() {
 	wp_enqueue_style( 'depixplugin-style', plugins_url( 'assets/style.css', __FILE__ ), array(), DEPIXPLUGIN_VERSION );

@@ -1,0 +1,24 @@
+{
+    "environment": "dev",
+    "environments": {
+        "prod": {
+            "captchaEnabled": true,
+            "enableDebugLogs": false,
+            "useDefaultFormValues": false,
+            "clickupEnabled": true
+        },
+        "dev": {
+            "captchaEnabled": true,
+            "enableDebugLogs": true,
+            "useDefaultFormValues": true,
+            "clickupEnabled": true,
+            "formDefaultValues": {
+                "fullName": "Dev User",
+                "email": "dev@eulen.app",
+                "telegramUser": "devuser",
+                "profileType": "p2p"
+            }
+        }
+    }
+}
+

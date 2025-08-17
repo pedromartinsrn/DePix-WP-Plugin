@@ -2,8 +2,6 @@
 
 if (!defined('ABSPATH')) { exit; }
 
-include_once ABSPATH . 'wp-load.php';
-
 class EulenWebhook {
 
     private $database;
@@ -22,6 +20,51 @@ class EulenWebhook {
             'callback' => array($this, 'handleRequest'),
             'permission_callback' => array($this, 'verifyWebhookSignature'),
         ));
+    }
+
+    public function verifyWebhookSignature( $request ) {
+
+        $secret = null;
+        if (defined('DEPIX_WEBHOOK_SECRET') && is_string(DEPIX_WEBHOOK_SECRET) && DEPIX_WEBHOOK_SECRET !== '') {
+            $secret = DEPIX_WEBHOOK_SECRET;
+        }
+        if (!$secret) {
+            $opt = get_option('depix_webhook_secret_enc_v1', '');
+            if (is_string($opt) && $opt !== '') {
+                $plain = EulenPanel::extract_plain_token_from_option_value($opt);
+                if (is_string($plain) && $plain !== '') {
+                    $secret = $plain;
+                }
+            }
+        }
+
+        if (!$secret) {
+            error_log('[Depix][Webhook] Nenhum secret configurado (DEPIX_WEBHOOK_SECRET ou option depix_webhook_secret). Aceitando provisoriamente.');
+            return true;
+        }
+
+        $auth = '';
+        if (is_object($request) && method_exists($request, 'get_header')) {
+            $auth = trim((string) $request->get_header('authorization'));
+        }
+        if ($auth === '' && isset($_SERVER['HTTP_AUTHORIZATION'])) {
+            $auth = trim((string) $_SERVER['HTTP_AUTHORIZATION']);
+        }
+        if ($auth === '' && isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+            $auth = trim((string) $_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
+        }
+
+        $expected = 'Basic ' . $secret;
+        if (!function_exists('hash_equals')) {
+            $valid = ($auth === $expected);
+        } else {
+            $valid = hash_equals($expected, $auth);
+        }
+
+        if (!$valid) {
+            return new WP_Error('depix_webhook_forbidden', 'invalid signature', array('status' => 403));
+        }
+        return true;
     }
 
     public function handleRequest(WP_REST_Request $request) {

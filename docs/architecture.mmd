@@ -1,0 +1,31 @@
+flowchart TD
+  subgraph Boot["Bootstrap do Plugin"]
+    R["depixplugin.php"] --> S["Definições e hooks\n- wp_enqueue_scripts\n- plugins_loaded (load textdomain)\n- init (DepixPlugin::init)"]
+    S --> T["DepixPlugin::init()\n- instancia EulenService, DepixTablesWP\n- EulenPanel::init()\n- EulenWebhook::init()"]
+  end
+
+  subgraph Frontend["Tema P2P (Front-end)"]
+    U["UI do Tema: coleta valor/ativo"] --> V["Chamada do Tema → Servidor WP\n(REST/AJAX/endpoint do tema)"]
+    V --> H["Plugin: EulenService::deposit(amountInCents)"]
+    H --> I["Eulen API: POST /deposit"]
+    I --> J["Resposta (id, qrCopyPaste, qrImageUrl)"]
+    J --> K["DepixTablesWP::storeTransaction"]
+    J --> L["UI do Tema: exibe QR + inicia polling"]
+    L --> M["admin-ajax.php?action=depix_tx_status&tx_id=…"]
+    M --> N["DepixTablesWP::getTransactionStatus(tx_id)"]
+    N --> L
+  end
+
+  subgraph Admin_Config["Admin (WP) - Configuração"]
+    A["Menu: Settings → Depix"] --> B["EulenPanel::register_settings\n- registra option 'depix_plugin_api_token_enc_v1'"]
+    B --> C["Salvar token → encrypt(AES-256-GCM, WP salts)"]
+    C --> D["Option salva (JSON cifrado)"]
+    A --> E["Botão: Ping API"]
+    E --> F["EulenService::ping() → GET /ping"]
+  end
+
+  subgraph Webhook["Webhook (Server → WP)"]
+    O["Eulen → POST /wp-json/depix/v1/webhook"] --> P["EulenWebhook::handleRequest"]
+    P --> Q["DepixTablesWP::updateTransaction(data)"]
+    Q --> N
+  end
