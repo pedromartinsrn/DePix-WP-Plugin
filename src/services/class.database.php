@@ -71,12 +71,13 @@ class DepixTablesWP
     private function sanitizeData(array $data, int $amountInCents): array
     {
         error_log('[Depix][DB] Sanitizing data for transaction storage.' . print_r($data, true));
-        $tx_id = $this->clamp(sanitize_text_field($data['id']), 64);
-        $status = isset($data['status']) ? sanitize_key($data['status']) : 'created';
+        $idRaw = $data['qrId'] ?? ($data['id'] ?? '');
+        $tx_id = $this->clamp(sanitize_text_field((string)$idRaw), 64);
+        $status = isset($data['status']) ? sanitize_key((string)$data['status']) : 'created';
         $amount = isset($data['amountInCents']) ? (int)$data['amountInCents'] : (isset($data['valueInCents']) ? (int)$data['valueInCents'] : (int)$amountInCents);
         if ($amount < 0) { $amount = 0; }
-        $qr_copy = isset($data['qrCopyPaste']) ? sanitize_textarea_field($data['qrCopyPaste']) : null;
-        $qr_img  = isset($data['qrImageUrl']) ? esc_url_raw($data['qrImageUrl']) : null;
+        $qr_copy = isset($data['qrCopyPaste']) ? sanitize_textarea_field((string)$data['qrCopyPaste']) : null;
+        $qr_img  = isset($data['qrImageUrl']) ? esc_url_raw((string)$data['qrImageUrl']) : null;
         $metaJson = isset($data['meta']) ? wp_json_encode($data['meta']) : wp_json_encode($data);
         $metaJson = $this->clamp((string)$metaJson, 65000);
 
@@ -108,10 +109,9 @@ class DepixTablesWP
         global $wpdb;
         $table = $wpdb->prefix . 'depixwp_transactions';
 
-        if (isset($data['qrId'])) {
-            $data['id'] = $data['qrId'];
-        }
-        if (empty($data['id'])) {
+        $idRaw = isset($data['id']) ? (string)$data['id'] : '';
+        $qrRaw = isset($data['qrId']) ? (string)$data['qrId'] : '';
+        if ($idRaw === '' && $qrRaw === '') {
             error_log('[Depix][DB][Warn] updateTransaction sem id/qrId.');
             return false;
         }
@@ -135,28 +135,48 @@ class DepixTablesWP
             return false;
         }
 
-        $lookup_id = $this->clamp(sanitize_text_field($data['id']), 64);
+        $firstLookup = $this->clamp(sanitize_text_field($idRaw !== '' ? $idRaw : $qrRaw), 64);
+        $secondLookup = '';
+        if ($qrRaw !== '' && $qrRaw !== $firstLookup) {
+            $secondLookup = $this->clamp(sanitize_text_field($qrRaw), 64);
+        }
+
         $updated = $wpdb->update(
             $table,
             $fields,
-            ['tx_id' => $lookup_id],
+            ['tx_id' => $firstLookup],
             $formats,
             ['%s']
         );
-        if (!$updated && !empty($data['qrId']) && $data['qrId'] !== $data['id']) {
-            $lookup_qr = $this->clamp(sanitize_text_field($data['qrId']), 64);
+
+        if ($updated === 0) {
+            $exists = (bool) $wpdb->get_var($wpdb->prepare("SELECT 1 FROM $table WHERE tx_id = %s LIMIT 1", $firstLookup));
+            if ($exists) {
+                $updated = 1; 
+            }
+        }
+
+        if ((!$updated || $updated === 0) && $secondLookup !== '') {
             $updated = $wpdb->update(
                 $table,
                 $fields,
-                ['tx_id' => $lookup_qr],
+                ['tx_id' => $secondLookup],
                 $formats,
                 ['%s']
             );
+            if ($updated === 0) {
+                $exists = (bool) $wpdb->get_var($wpdb->prepare("SELECT 1 FROM $table WHERE tx_id = %s LIMIT 1", $secondLookup));
+                if ($exists) {
+                    $updated = 1;
+                }
+            }
         }
+
         if (!$updated) {
-            error_log('[Depix][DB][Info] Nenhuma linha atualizada para tx_id='.$data['id']);
+            $ref = $firstLookup !== '' ? $firstLookup : $secondLookup;
+            error_log('[Depix][DB][Info] Nenhuma linha atualizada para tx_id=' . $ref);
         }
-        return (bool)$updated;    
+        return (bool)$updated;
     }
 
 }

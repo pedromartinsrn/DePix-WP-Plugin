@@ -23,14 +23,16 @@ class EulenWebhook {
     }
 
     public function verifyWebhookSignature( $request ) {
-
         $secret = null;
-        if (defined('DEPIX_WEBHOOK_SECRET') && is_string(DEPIX_WEBHOOK_SECRET) && DEPIX_WEBHOOK_SECRET !== '') {
-            $secret = DEPIX_WEBHOOK_SECRET;
+        if (defined('DEPIX_WEBHOOK_SECRET')) {
+            $val = constant('DEPIX_WEBHOOK_SECRET');
+            if (is_string($val) && $val !== '') {
+                $secret = $val;
+            }
         }
         if (!$secret) {
             $opt = get_option('depix_webhook_secret_enc_v1', '');
-            if (is_string($opt) && $opt !== '') {
+            if (is_string($opt) && $opt !== '' && class_exists('EulenPanel')) {
                 $plain = EulenPanel::extract_plain_token_from_option_value($opt);
                 if (is_string($plain) && $plain !== '') {
                     $secret = $plain;
@@ -39,8 +41,7 @@ class EulenWebhook {
         }
 
         if (!$secret) {
-            error_log('[Depix][Webhook] Nenhum secret configurado (DEPIX_WEBHOOK_SECRET ou option depix_webhook_secret). Aceitando provisoriamente.');
-            return true;
+            return new WP_Error('depix_webhook_unconfigured', 'webhook secret missing', array('status' => 503));
         }
 
         $auth = '';
@@ -62,13 +63,13 @@ class EulenWebhook {
         }
 
         if (!$valid) {
-            return new WP_Error('depix_webhook_forbidden', 'invalid signature', array('status' => 403));
+            return new WP_Error('depix_webhook_forbidden', 'invalid signature', array('status' => 401));
         }
         return true;
     }
 
     public function handleRequest(WP_REST_Request $request) {
-        $rawData = $request->get_body();
+    $rawData = $request->get_body();
         $data = json_decode($rawData, true);
         if(!is_array($data)) {
             return new WP_REST_Response(['error' => 'invalid_payload'], 400);
@@ -77,7 +78,7 @@ class EulenWebhook {
         if (empty($data['id']) && !empty($data['qrId'])) {
             $data['id'] = $data['qrId'];
         }
-        if (empty($data['id'])) {
+    if (empty($data['id'])) {
             return new WP_REST_Response(['error' => 'missing_id'], 400);
         }
 
