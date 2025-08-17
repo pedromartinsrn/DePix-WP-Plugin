@@ -612,15 +612,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             const idx = stepsEls.findIndex(s => s.dataset.step === '5');
             if (idx !== -1) {
               // Configurar tutorial quando for fluxo BTC
-              const isBtc = (window.EulenState?.get?.()?.asset || document.documentElement.classList.contains('asset-btc')) ? true : false;
+              const currentAsset = (window.EulenState && typeof window.EulenState.get === 'function') ? (window.EulenState.get().asset || '') : '';
+              const isBtc = (currentAsset === 'btc') || document.documentElement.classList.contains('asset-btc');
               const vWrap = document.getElementById('success-video');
               const iframe = document.getElementById('success-video-iframe');
               const hint = document.getElementById('success-hint');
               if (isBtc && vWrap && iframe) {
                 vWrap.style.display = '';
                 if (hint) hint.textContent = 'Veja como transformar DePix em Bitcoin pela SideSwap:';
-                // URL do tutorial (pode ser ajustada no futuro)
-                iframe.src = 'https://www.youtube.com/embed/VIDEO_ID_AQUI?rel=0&modestbranding=1';
+                // URL do tutorial
+                iframe.src = 'https://www.youtube.com/embed/rbxdFbSVOJk?rel=0&modestbranding=1';
               } else {
                 if (vWrap) vWrap.style.display = 'none';
                 if (iframe) iframe.src = '';
