@@ -5,6 +5,7 @@ if (!defined('ABSPATH')) { exit; }
 require_once DEPIXPLUGIN_PLUGIN_DIR . 'src/services/class.eulen.php'; 
 require_once DEPIXPLUGIN_PLUGIN_DIR . 'src/services/class.database.php';
 require_once DEPIXPLUGIN_PLUGIN_DIR . 'src/services/class.eulenWebhook.php';
+require_once DEPIXPLUGIN_PLUGIN_DIR . 'src/services/index.php';
 require_once DEPIXPLUGIN_PLUGIN_DIR . 'src/panel/class.eulenpanel.php';
 require_once DEPIXPLUGIN_PLUGIN_DIR . 'src/shortcodes/class.shortcode.php';
 
@@ -25,8 +26,7 @@ class DepixPlugin {
         self::$webhook = new EulenWebhook();
         self::$webhook->init();
 
-        // Disable for debugging and use [depix_teste]
-        // DepixShortcodes::init();
+
     }
     
     public static function plugin_activation() {

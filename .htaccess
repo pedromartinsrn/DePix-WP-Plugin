@@ -1,13 +1,22 @@
-<FilesMatch "^(depixplugin\.php)$">
+Options -Indexes
+
+
+<FilesMatch "\.(php|phtml)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "^depixplugin\.php$">
+    Order allow,deny
     Allow from all
 </FilesMatch>
-<FilesMatch ".*">
-    Deny from all
+
+<FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|eot)$">
+    Order allow,deny
+    Allow from all
 </FilesMatch>
 
 <FilesMatch "\.(htaccess|htpasswd|ini|log|conf|env)$">
     Order allow,deny
     Deny from all
 </FilesMatch>
-
-Options -Indexes

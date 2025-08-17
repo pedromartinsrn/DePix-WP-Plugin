@@ -6,21 +6,34 @@ if (!class_exists('EulenPanel')) {
     class EulenPanel
     {
         const OPTION_NAME = 'depix_plugin_api_token_enc_v1';
+        const OPTION_WEBHOOK_SECRET = 'depix_webhook_secret_enc_v1';
 
         public function init(): void
         {
             add_action('admin_menu', [$this, 'register_menu']);
+            add_action('admin_menu', [$this, 'register_arch_menu']);
             add_action('admin_init', [$this, 'register_settings']);
         }
 
         public function register_menu(): void
         {
             add_options_page(
-                __('Depix Settings', 'depix'),
-                __('Depix', 'depix'),
+                __('Depix Settings', 'depixplugin'),
+                __('Depix', 'depixplugin'),
                 'manage_options',
                 'depix-settings',
                 [$this, 'render_page']
+            );
+        }
+
+        public function register_arch_menu(): void
+        {
+            add_options_page(
+                __('Depix Architecture', 'depixplugin'),
+                __('Depix Arch', 'depixplugin'),
+                'manage_options',
+                'depix-architecture',
+                [$this, 'render_arch_page']
             );
         }
 
@@ -36,19 +49,37 @@ if (!class_exists('EulenPanel')) {
                 ]
             );
 
+            register_setting(
+                'depix_settings_group',
+                self::OPTION_WEBHOOK_SECRET,
+                [
+                    'sanitize_callback' => [$this, 'sanitize_encrypted_secret'],
+                    'type'              => 'string',
+                    'show_in_rest'      => false,
+                ]
+            );
+
             add_settings_section(
                 'depix_main_section',
-                __('Configurações de API', 'depix'),
+                __('Configurações de API', 'depixplugin'),
                 function () {
-                    echo '<p>' . esc_html__('Configure o token de acesso à API Eulen/DePix.', 'depix') . '</p>';
+                    echo '<p>' . esc_html__('Configure o token de acesso à API Eulen/DePix.', 'depixplugin') . '</p>';
                 },
                 'depix-settings'
             );
 
             add_settings_field(
                 'depix_api_token_field',
-                __('API Token', 'depix'),
+                __('API Token', 'depixplugin'),
                 [$this, 'field_api_token'],
+                'depix-settings',
+                'depix_main_section'
+            );
+
+            add_settings_field(
+                'depix_webhook_secret_field',
+                __('Webhook Secret', 'depixplugin'),
+                [$this, 'field_webhook_secret'],
                 'depix-settings',
                 'depix_main_section'
             );
@@ -59,8 +90,16 @@ if (!class_exists('EulenPanel')) {
         {
             $encrypted = get_option(self::OPTION_NAME, '');
             $has_token = !empty($encrypted);
-            echo '<input type="password" autocomplete="new-password" style="width:350px" name="' . esc_attr(self::OPTION_NAME) . '" value="" placeholder="' . esc_attr($has_token ? __('•••••••• (já salvo)', 'depix') : __('Cole seu token aqui', 'depix')) . '" />';
-            echo '<p class="description">' . esc_html__('Ao salvar, o token é criptografado usando as WP salts. Deixe vazio para manter o token atual.', 'depix') . '</p>';
+            echo '<input type="password" autocomplete="new-password" style="width:350px" name="' . esc_attr(self::OPTION_NAME) . '" value="" placeholder="' . esc_attr($has_token ? __('•••••••• (já salvo)', 'depixplugin') : __('Cole seu token aqui', 'depixplugin')) . '" />';
+            echo '<p class="description">' . esc_html__('Ao salvar, o token é criptografado usando as WP salts. Deixe vazio para manter o token atual.', 'depixplugin') . '</p>';
+        }
+
+        public function field_webhook_secret(): void
+        {
+            $encrypted = get_option(self::OPTION_WEBHOOK_SECRET, '');
+            $has_secret = !empty($encrypted);
+            echo '<input type="password" autocomplete="new-password" style="width:350px" name="' . esc_attr(self::OPTION_WEBHOOK_SECRET) . '" value="" placeholder="' . esc_attr($has_secret ? __('•••••••• (já salvo)', 'depixplugin') : __('Cole seu webhook secret aqui', 'depixplugin')) . '" />';
+            echo '<p class="description">' . esc_html__('Salvamos o webhook secret criptografado (AES‑256‑GCM) usando as WP salts. Deixe vazio para manter o secret atual.', 'depixplugin') . '</p>';
         }
 
 
@@ -77,8 +116,27 @@ if (!class_exists('EulenPanel')) {
 
             $encrypted = $this->encrypt($raw);
             if (!$encrypted) {
-                add_settings_error(self::OPTION_NAME, 'depix_encrypt_fail', __('Falha ao criptografar token (extensão OpenSSL ausente?).', 'depix'));
+                add_settings_error(self::OPTION_NAME, 'depix_encrypt_fail', __('Falha ao criptografar token (extensão OpenSSL ausente?).', 'depixplugin'));
                 return get_option(self::OPTION_NAME, '');
+            }
+            return wp_json_encode($encrypted);
+        }
+
+        public function sanitize_encrypted_secret($raw)
+        {
+            if ($raw === null || $raw === '') {
+                return get_option(self::OPTION_WEBHOOK_SECRET, '');
+            }
+
+            $raw = trim($raw);
+            if ($raw === '') {
+                return get_option(self::OPTION_WEBHOOK_SECRET, '');
+            }
+
+            $encrypted = $this->encrypt($raw);
+            if (!$encrypted) {
+                add_settings_error(self::OPTION_WEBHOOK_SECRET, 'depix_webhook_encrypt_fail', __('Falha ao criptografar webhook secret (OpenSSL ausente?).', 'depixplugin'));
+                return get_option(self::OPTION_WEBHOOK_SECRET, '');
             }
             return wp_json_encode($encrypted);
         }
@@ -86,7 +144,7 @@ if (!class_exists('EulenPanel')) {
         public function render_page(): void
         {
             if (!current_user_can('manage_options')) {
-                wp_die(__('Sem permissão.', 'depix'));
+                wp_die(__('Sem permissão.', 'depixplugin'));
             }
            if (
                 isset($_POST['depix_action'], $_POST['depix_ping_nonce']) &&
@@ -94,7 +152,7 @@ if (!class_exists('EulenPanel')) {
                 wp_verify_nonce(sanitize_text_field($_POST['depix_ping_nonce']), 'depix_ping')
             ) {
                 if (!class_exists('EulenService')) {
-                    add_settings_error('depix_ping', 'depix_ping_no_service', __('Serviço da API não carregado.', 'depix'), 'error');
+                    add_settings_error('depix_ping', 'depix_ping_no_service', __('Serviço da API não carregado.', 'depixplugin'), 'error');
                 } else {
                     $service = new EulenService();
                     $resp = $service->ping();
@@ -102,7 +160,7 @@ if (!class_exists('EulenPanel')) {
                         add_settings_error(
                             'depix_ping',
                             'depix_ping_err',
-                            sprintf(__('Ping falhou: %s', 'depix'), esc_html($resp->get_error_message())),
+                            sprintf(__('Ping falhou: %s', 'depixplugin'), esc_html($resp->get_error_message())),
                             'error'
                         );
                     } else {
@@ -120,7 +178,7 @@ if (!class_exists('EulenPanel')) {
                                 'depix_ping',
                                 'depix_ping_ok',
                                 sprintf(
-                                    __('Ping OK (HTTP %d). Trecho da resposta: %s', 'depix'),
+                                    __('Ping OK (HTTP %d). Trecho da resposta: %s', 'depixplugin'),
                                     $code,
                                     esc_html($body_trim === '' ? '[vazio]' : $body_trim)
                                 ),
@@ -131,7 +189,7 @@ if (!class_exists('EulenPanel')) {
                                 'depix_ping',
                                 'depix_ping_fail',
                                 sprintf(
-                                    __('Ping falhou (HTTP %d). Corpo: %s', 'depix'),
+                                    __('Ping falhou (HTTP %d). Corpo: %s', 'depixplugin'),
                                     $code,
                                     esc_html($body_trim === '' ? '[vazio]' : $body_trim)
                                 ),
@@ -141,11 +199,11 @@ if (!class_exists('EulenPanel')) {
                     }
                 }
             } elseif (isset($_POST['depix_action']) && $_POST['depix_action'] === 'ping') {
-                add_settings_error('depix_ping', 'depix_ping_nonce_fail', __('Nonce inválido no Ping.', 'depix'), 'error');
+                add_settings_error('depix_ping', 'depix_ping_nonce_fail', __('Nonce inválido no Ping.', 'depixplugin'), 'error');
             }
 
             echo '<div class="wrap">';
-            echo '<h1>' . esc_html__('Depix - Configurações', 'depix') . '</h1>';
+            echo '<h1>' . esc_html__('Depix - Configurações', 'depixplugin') . '</h1>';
 
             settings_errors();
 
@@ -156,18 +214,44 @@ if (!class_exists('EulenPanel')) {
             echo '</form>';
 
             echo '<hr />';
-            echo '<h2>' . esc_html__('Status', 'depix') . '</h2>';
-            echo '<p>' . esc_html__('Token presente: ', 'depix') . '<strong>' . (self::has_token_saved() ? __('Sim', 'depix') : __('Não', 'depix')) . '</strong></p>';
-            echo '<p><strong>' . esc_html__('Registre no BOT Telegram da Eulen este webhook:', 'depix') . '</strong> <code>' . esc_html(rest_url('depix/v1/webhook')) . '</code></p>';
+            echo '<h2>' . esc_html__('Status', 'depixplugin') . '</h2>';
+            echo '<p>' . esc_html__('Token presente: ', 'depixplugin') . '<strong>' . (self::has_token_saved() ? __('Sim', 'depixplugin') : __('Não', 'depixplugin')) . '</strong></p>';
+            $secret_present = !empty(get_option(self::OPTION_WEBHOOK_SECRET, ''));
+            echo '<p>' . esc_html__('Webhook secret presente: ', 'depixplugin') . '<strong>' . ($secret_present ? __('Sim', 'depixplugin') : __('Não', 'depixplugin')) . '</strong></p>';
+            echo '<p><strong>' . esc_html__('Registre no BOT Telegram da Eulen este webhook:', 'depixplugin') . '</strong> <code>' . esc_html(rest_url('depix/v1/webhook')) . '</code></p>';
 
-            echo '<h2>' . esc_html__('Teste de Conectividade', 'depix') . '</h2>';
+            echo '<h2>' . esc_html__('Teste de Conectividade', 'depixplugin') . '</h2>';
             echo '<form method="post">';
             wp_nonce_field('depix_ping', 'depix_ping_nonce');
             echo '<input type="hidden" name="depix_action" value="ping" />';
-            echo '<p><button type="submit" class="button button-secondary">' . esc_html__('Fazer Ping na API', 'depix') . '</button></p>';
-            echo '<p class="description">' . esc_html__('Executa uma chamada /ping para verificar conectividade e autenticação.', 'depix') . '</p>';
+            echo '<p><button type="submit" class="button button-secondary">' . esc_html__('Fazer Ping na API', 'depixplugin') . '</button></p>';
+            echo '<p class="description">' . esc_html__('Executa uma chamada /ping para verificar conectividade e autenticação.', 'depixplugin') . '</p>';
             echo '</form>';
 
+            echo '</div>';
+        }
+
+        public function render_arch_page(): void
+        {
+            if (!current_user_can('manage_options')) {
+                wp_die(__('Sem permissão.', 'depixplugin'));
+            }
+
+            $mmd_path = DEPIXPLUGIN_PLUGIN_DIR . 'docs/architecture.mmd';
+            $mmd = '';
+            if (is_readable($mmd_path)) {
+                $mmd = file_get_contents($mmd_path);
+            } else {
+                $mmd = "graph TD; A[Arquivo docs/architecture.mmd não encontrado];";
+            }
+
+            echo '<div class="wrap">';
+            echo '<h1>' . esc_html__('Depix - Arquitetura', 'depixplugin') . '</h1>';
+            echo '<p class="description">' . esc_html__('O diagrama é renderizado a partir do arquivo docs/architecture.mmd dentro do plugin.', 'depixplugin') . '</p>';
+            echo '<div class="mermaid" style="background:#fff;padding:12px;border:1px solid #ddd;overflow:auto;">' . "\n" . $mmd . "\n" . '</div>';
+            echo '<p><small>' . esc_html__('Edite o arquivo docs/architecture.mmd e recarregue a página para atualizar o diagrama.', 'depixplugin') . '</small></p>';
+            echo '<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>';
+            echo '<script>mermaid.initialize({startOnLoad:true});</script>';
             echo '</div>';
         }
 
