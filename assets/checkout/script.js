@@ -511,7 +511,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const qrImg = document.getElementById('pix-qr-image');
     const copyBtn = document.getElementById('pix-copy');
     const statusEl = document.getElementById('pix-status');
-    const simulateBtn = document.getElementById('pix-simulate-webhook');
+    const simulateBtn = null;
 
     if (!brcodeInput || !qrImg || !copyBtn || !statusEl) return;
 
@@ -527,16 +527,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       setTimeout(() => { copyBtn.title = prevTitle || 'Copiar'; copyBtn.classList.remove('copied'); }, 1200);
     };
 
-    // Dev helper: botão de simulação para marcar como sucesso
-    try {
-      if (simulateBtn && (debugLogs === true)) {
-        simulateBtn.style.display = '';
-        simulateBtn.onclick = () => { setStatus('approved'); };
-      } else if (simulateBtn) {
-        simulateBtn.style.display = 'none';
-        simulateBtn.onclick = null;
-      }
-    } catch(_){}
+    // Simulação desativada em produção
 
     initializePixSession();
 

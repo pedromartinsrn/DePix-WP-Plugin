@@ -1,11 +1,12 @@
 {
-    "environment": "dev",
+    "environment": "prod",
     "environments": {
         "prod": {
             "captchaEnabled": true,
             "enableDebugLogs": false,
             "useDefaultFormValues": false,
-            "clickupEnabled": true
+            "clickupEnabled": true,
+            "spreadBtc": 0.015
         },
         "dev": {
             "captchaEnabled": true,

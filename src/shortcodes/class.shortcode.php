@@ -481,7 +481,6 @@ class DepixShortcodes {
 				  </div>
 				  <div id="pix-status" class="pix-status waiting">Aguardando pagamento...</div>
 				  <button type="button" id="pix-retry" class="eulen-button-style" style="display:none; margin-top:10px;">Gerar novo QR</button>
-				  <button type="button" id="pix-simulate-webhook" class="eulen-button-style" style="display:none; margin-top:10px;">Simular pagamento (webhook)</button>
 				</div>
 			  </div>
 			  <div class="button-container">
