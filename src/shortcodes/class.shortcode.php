@@ -97,11 +97,50 @@ class DepixShortcodes {
 		$plugin_file = DEPIXPLUGIN_PLUGIN_DIR . 'depixplugin.php';
 		wp_enqueue_style('depix-checkout-css', plugins_url('assets/checkout/main.css', $plugin_file), [], null);
 		wp_enqueue_script('depix-checkout-script', plugins_url('assets/checkout/script.js', $plugin_file), [], null, true);
-		wp_enqueue_script('depix-checkout-search', plugins_url('assets/checkout/search.js', $plugin_file), [], null, true);
 		wp_localize_script('depix-checkout-script', 'CFTheme', [
 			'baseUrl' => home_url('/'),
 			'configUrl' => plugins_url('assets/checkout/config.json', $plugin_file)
 		]);
+
+		wp_add_inline_script(
+			'depix-checkout-script',
+			'(function(w){
+			  w.DepixWP = w.DepixWP || {};
+			  w.DepixWP.ajaxUrl = ' . wp_json_encode(admin_url('admin-ajax.php')) . ';
+			  w.DepixWP.finalStatuses = ' . wp_json_encode(['paid','completed','confirmed','success','depix_sent']) . ';
+			  function advanceToSuccess(){
+			    var st = document.getElementById("pix-status");
+			    if (st){ st.classList.remove("waiting"); st.classList.add("approved"); st.textContent = "Pagamento confirmado! Enviando ativos..."; }
+			    setTimeout(function(){
+			      var s4=document.querySelector(".form-step[data-step=\"4\"]");
+			      var s5=document.querySelector(".form-step[data-step=\"5\"]");
+			      if (s4 && s5){ s4.classList.remove("active"); s5.classList.add("active"); }
+			      try { document.querySelector(".progress-bar .progress").style.width = "100%"; } catch(e){}
+			    }, 600);
+			  }
+			  function poll(txId, onFinal){
+			    if(!txId) return;
+			    var ajax = w.DepixWP.ajaxUrl;
+			    var finals = w.DepixWP.finalStatuses || [];
+			    (function step(){
+			      fetch(ajax + "?action=depix_tx_status&tx_id=" + encodeURIComponent(txId), { credentials: "same-origin" })
+			        .then(function(r){ return r.json(); })
+			        .then(function(j){
+			          if (j && j.status){
+			            if (j.final === true || finals.indexOf(j.status) !== -1){ (onFinal||advanceToSuccess)(j); }
+			            else { setTimeout(step, 3000); }
+			          } else { setTimeout(step, 4000); }
+			        })
+			        .catch(function(){ setTimeout(step, 5000); });
+			    })();
+			  }
+			  w.DepixWP.startPolling = function(txId, cb){ poll(txId, cb); };
+			  w.addEventListener("depix:deposit:created", function(ev){
+			    try { var tx = ev && ev.detail && ev.detail.id; if (tx) { w.DepixWP.startPolling(tx); } } catch(e){}
+			  });
+			})(window);',
+			'before'
+		);
 
 		ob_start();
 		?>
