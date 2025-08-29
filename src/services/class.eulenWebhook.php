@@ -23,7 +23,6 @@ class EulenWebhook {
     }
 
     public function verifyWebhookSignature( $request ) {
-        
     $debugActive = defined('DEPIX_WEBHOOK_DEBUG') && constant('DEPIX_WEBHOOK_DEBUG');
     $secret = null;
     $secretSource = '';
@@ -45,7 +44,7 @@ class EulenWebhook {
             if (is_string($plain) && $plain !== '') { $secret = $plain; $secretSource = 'OPTION'; }
         }
 
-    if ($secret) {
+        if ($secret) {
             $orig = $secret;
             $changed = false;
             
@@ -74,9 +73,7 @@ class EulenWebhook {
                 }
             }
             $secret = trim((string)$secret);
-            if ($changed && $debugActive) {
-                error_log('[Depix][Webhook][debug] secret source=' . ($secretSource ?: 'unknown') . ' normalized from=' . strlen((string)$orig) . ' to=' . strlen((string)$secret));
-            } elseif ($debugActive && $secretSource) {
+            if ($debugActive && $secretSource) {
                 error_log('[Depix][Webhook][debug] secret source=' . $secretSource . ' len=' . strlen((string)$secret));
             }
         }
@@ -85,20 +82,13 @@ class EulenWebhook {
             return new WP_Error('depix_webhook_unconfigured', 'webhook secret missing', array('status' => 503));
         }
 
-        // Opcional: logar secret em claro e base64('partner:secret') SOMENTE se explicitamente autorizado
-    if ($debugActive && defined('DEPIX_ALLOW_SECRET_LOG') && constant('DEPIX_ALLOW_SECRET_LOG')) {
-            error_log('[Depix][Webhook][secret][plain] ' . $secret);
-            error_log('[Depix][Webhook][secret][b64_partner] ' . base64_encode('partner:' . $secret));
-        }
-
-
-    $auth = '';
+        $auth = '';
         $authSrc = '';
         if (is_object($request) && method_exists($request, 'get_header')) {
             $auth = trim((string) $request->get_header('authorization'));
             if ($auth !== '') { $authSrc = 'request:get_header'; }
         }
-    if ($auth === '' && isset($_SERVER['HTTP_AUTHORIZATION'])) {
+        if ($auth === '' && isset($_SERVER['HTTP_AUTHORIZATION'])) {
             $auth = trim((string) $_SERVER['HTTP_AUTHORIZATION']);
             if ($auth !== '') { $authSrc = 'SERVER:HTTP_AUTHORIZATION'; }
         }
@@ -122,31 +112,17 @@ class EulenWebhook {
         if ($auth !== '' && stripos($auth, 'Basic ') === 0) {
             $token = trim(substr($auth, 6));
             $decoded = base64_decode($token, true);
-            if ($debugActive) {
-                $tokShow = $token;
-                if (strlen($tokShow) > 256) { $tokShow = substr($tokShow, 0, 256) . '…'; }
-                error_log('[Depix][Webhook][debug] basic_token_b64=' . $tokShow);
+            // Aceite legado: emissor envia exatamente "Basic <secret>"
+            if (!$valid && $allowLegacy) {
+                $authNoBasic = trim(substr($auth, 6));
+                if ($authNoBasic === $secret || $token === $secret) { $valid = true; }
             }
             if ($decoded !== false && $decoded !== '') {
-                // Normalizar quebras de linha e espaços ao final vindos de emissores
                 $decodedNorm = rtrim((string)$decoded, "\r\n\t ");
-                if ($debugActive) {
-                    $hex = bin2hex(substr($decodedNorm, 0, 64));
-                    error_log('[Depix][Webhook][debug] decoded_hex_prefix=' . $hex . ' decoded_len=' . strlen((string)$decodedNorm));
-                }
-                // Comparar pelos componentes para robustez
                 $colonPos = strpos($decodedNorm, ':');
                 if ($colonPos !== false) {
-                    if ($debugActive) { error_log('[Depix][Webhook][debug] colon_pos=' . $colonPos); }
-            $user = trim(substr($decodedNorm, 0, $colonPos));
-            $pwd  = substr($decodedNorm, $colonPos + 1);
-            if ($debugActive) {
-                        $pwdLen = strlen((string)$pwd);
-                        error_log('[Depix][Webhook][debug] auth src=' . ($authSrc ?: 'n/a') . ' user=' . $user . ' pwd_len=' . $pwdLen . ' secret_len=' . strlen((string)$secret));
-                        $userHex = bin2hex(substr($user, 0, 32));
-                        $pwdHex  = bin2hex(substr($pwd, 0, 32));
-                        error_log('[Depix][Webhook][debug] user_hex_prefix=' . $userHex . ' pwd_hex_prefix=' . $pwdHex);
-                    }
+                    $user = trim(substr($decodedNorm, 0, $colonPos));
+                    $pwd  = substr($decodedNorm, $colonPos + 1);
                     if (strtolower($user) === 'partner') {
                         if (function_exists('hash_equals')) {
                             $valid = hash_equals($secret, $pwd);
@@ -154,7 +130,6 @@ class EulenWebhook {
                             $valid = ($secret === $pwd);
                         }
                     } elseif ($allowLegacy) {
-                        // Compat: aceitar qualquer usuário desde que a senha corresponda ao secret
                         if (function_exists('hash_equals')) {
                             $valid = hash_equals($secret, $pwd);
                         } else {
@@ -162,27 +137,16 @@ class EulenWebhook {
                         }
                     }
                 }
-                // Compat extra: aceitar quando o decodificado for exatamente o secret (sem username)
                 if (!$valid && $allowLegacy) {
                     if ($decodedNorm === $secret || $decodedNorm === (':' . $secret) || $decodedNorm === ($secret . ':')) {
                         $valid = true;
                     }
                 }
             }
-            // Compat: aceitar literal "Basic <secret>"
-            if (!$valid && $allowLegacy) {
-                if ($auth === ('Basic ' . $secret)) { $valid = true; }
-            }
-            // Compat: aceitar quando o emissor envia Base64(secret) ao invés de Base64('partner:secret')
+            // Aceite legado adicional base64(secret)
             if (!$valid && $allowLegacy) {
                 if ($token === base64_encode($secret) || $token === base64_encode(':' . $secret) || $token === base64_encode($secret . ':')) {
                     $valid = true;
-                }
-            }
-            // Dica: token parece ser o secret direto, mas modo compat desligado
-            if (!$valid && !$allowLegacy && $debugActive) {
-                if ($token === $secret) {
-                    error_log('[Depix][Webhook][hint] Emissor enviou "Basic <secret>". Ative DEPIX_WEBHOOK_ALLOW_LEGACY temporariamente ou ajuste para Basic base64("partner:[secret]").');
                 }
             }
         }
@@ -191,8 +155,9 @@ class EulenWebhook {
             error_log('[Depix][Webhook] invalid Authorization format. Expected Basic base64("partner:[secret]")');
             return new WP_Error('depix_webhook_forbidden', 'invalid signature', array('status' => 401));
         }
-        if ($allowLegacy && $debugActive) {
-            error_log('[Depix][Webhook][compat] legacy Authorization accepted');
+        if ($debugActive) {
+            $mode = $allowLegacy ? 'accepted (legacy/strict)' : 'accepted (strict)';
+            error_log('[Depix][Webhook][debug] auth ' . $mode . ' via ' . ($authSrc ?: 'n/a'));
         }
         
         return true;
