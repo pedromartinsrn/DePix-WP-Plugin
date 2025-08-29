@@ -281,6 +281,11 @@ if (!class_exists('EulenPanel')) {
             return self::extract_plain_token_from_option_value($opt);
         }
 
+        public static function get_plain_webhook_secret(): ?string
+        {
+            $opt = get_option(self::OPTION_WEBHOOK_SECRET, '');
+            return self::extract_plain_token_from_option_value($opt);
+        }
  
         public static function extract_plain_token_from_option_value($raw): ?string
         {

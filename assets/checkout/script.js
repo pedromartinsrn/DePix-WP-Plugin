@@ -543,11 +543,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         log('[PIX][start] json=', data);
         if (res.status === 202 || data?.async === true) { showPixError(data); return; }
         if (!res.ok) { showPixError(data); return; }
-        if (!data || !data.txId) { showPixError('invalid start response'); return; }
-        currentTxId = data.txId;
-        applyPayload({ brcode: data.brcode, qrImageUrl: data.qrImageUrl });
-        setStatus('waiting');
-        attachStatusStream(currentTxId);
+  if (!data || !data.txId) { showPixError('invalid start response'); return; }
+  currentTxId = data.txId;
+  try { document.dispatchEvent(new CustomEvent('depix:deposit:created', { detail: { id: currentTxId } })); } catch(_){ }
+  applyPayload({ brcode: data.brcode, qrImageUrl: data.qrImageUrl });
+  setStatus('waiting');
+  attachStatusStream(currentTxId);
       } catch (err) {
         warn('[PIX][start][error]', err);
         showPixError(err && err.message ? err.message : String(err));
@@ -590,9 +591,39 @@ document.addEventListener('DOMContentLoaded', async () => {
       log('[PIX][status]', status);
       if (!status) return;
       statusEl.classList.remove('waiting','approved');
+      if (status === 'depix_sent') {
+        statusEl.classList.add('approved');
+        statusEl.textContent = 'Pagamento confirmado.';
+        setTimeout(() => {
+          try {
+            const stepsEls = Array.from(document.querySelectorAll('.form-step'));
+            const idx = stepsEls.findIndex(s => s.dataset.step === '5');
+            if (idx !== -1) {
+              const currentAsset = (window.EulenState && typeof window.EulenState.get === 'function') ? (window.EulenState.get().asset || '') : '';
+              const isBtc = (currentAsset === 'btc') || document.documentElement.classList.contains('asset-btc');
+              const vWrap = document.getElementById('success-video');
+              const iframe = document.getElementById('success-video-iframe');
+              const hint = document.getElementById('success-hint');
+              if (isBtc && vWrap && iframe) {
+                vWrap.style.display = '';
+                if (hint) hint.textContent = 'Veja como transformar DePix em Bitcoin pela SideSwap:';
+                iframe.src = 'https://www.youtube.com/embed/rbxdFbSVOJk?rel=0&modestbranding=1';
+              } else {
+                if (vWrap) vWrap.style.display = 'none';
+                if (iframe) iframe.src = '';
+                if (hint) hint.textContent = 'Pagamento confirmado.';
+              }
+              const allSteps = Array.from(document.querySelectorAll('.form-step'));
+              allSteps.forEach((step, i) => step.classList.toggle('active', i === idx));
+              try { document.querySelector('.progress-bar .progress').style.width = '100%'; } catch(_){}
+            }
+          } catch(_){}
+        }, 600);
+        return;
+      }
       if (status === 'approved') {
         statusEl.classList.add('approved');
-        statusEl.textContent = 'Pagamento confirmado! Enviando ativos...';
+        statusEl.textContent = 'Pagamento confirmado.';
         setTimeout(() => {
           
           try {
@@ -634,8 +665,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function attachStatusStream(txId){
-      log('[PIX][stream] attach for', txId);
+      
       if (!txId) return;
+
+      try {
+        if (window.DepixWP && window.DepixWP.ajaxUrl && typeof window.DepixWP.startPolling === 'function') {
+          window.DepixWP.startPolling(txId);
+          return;
+        }
+      } catch(_) {}
+
       if (window.EventSource) {
         try {
           const es = new EventSource(`/api/pix/stream/${encodeURIComponent(txId)}`);
@@ -646,7 +685,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               if (msg.brcode || msg.qrImageUrl) applyPayload(msg);
               if (msg.status) {
                 setStatus(msg.status);
-                if (msg.status === 'approved' || msg.status === 'expired' || msg.status === 'failed') es.close();
+                if (msg.status === 'approved' || msg.status === 'expired' || msg.status === 'failed' || msg.status === 'depix_sent') es.close();
               }
             } catch(_){ }
           };
@@ -658,11 +697,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function startPolling(txId){
-      log('[PIX][poll] start for', txId);
       let attempts = 0;
       const iv = setInterval(async () => {
         attempts++;
         try {
+          
+          if (window.DepixWP && window.DepixWP.ajaxUrl) {
+            const u = window.DepixWP.ajaxUrl + '?action=depix_tx_status&tx_id=' + encodeURIComponent(txId);
+            const r = await fetch(u, { credentials: 'same-origin' });
+            const j = await r.json();
+            log('[PIX][poll][ajax] resp=', j);
+            if (j.status) {
+              setStatus(j.status);
+              if (j.final === true || j.status === 'approved' || j.status === 'expired' || j.status === 'failed' || j.status === 'depix_sent') { clearInterval(iv); }
+            }
+            return;
+          }
           const base = (window.CFTheme && CFTheme.baseUrl) ? CFTheme.baseUrl.replace(/\/$/, '') : '';
           const url = `${base}/api/pix/status?txId=${encodeURIComponent(txId)}`;
           log('[PIX][poll] attempt', attempts, 'url=', url);
@@ -672,7 +722,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (j.brcode || j.qrImageUrl) applyPayload(j);
           if (j.status) {
             setStatus(j.status);
-            if (j.status === 'approved' || j.status === 'expired' || j.status === 'failed') { clearInterval(iv); }
+            if (j.status === 'approved' || j.status === 'expired' || j.status === 'failed' || j.status === 'depix_sent') { clearInterval(iv); }
           }
         } catch(err){ warn('[PIX][poll][error]', err); if (attempts > 30) clearInterval(iv); }
       }, 2000);

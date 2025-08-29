@@ -41,27 +41,23 @@ class DepixTablesWP
         if ($tx_id === '') {
             error_log('[Depix][DB][Warn] storeTransaction sem id/qrId no payload.');
         }
-        $wpdb->insert(
-            $table,
-            [
-                'tx_id' => $tx_id,
-                'amount_cents' => isset($data['amountInCents']) ? (int)$data['amountInCents'] : (isset($data['valueInCents']) ? (int)$data['valueInCents'] : (int)$amountInCents),
-                'status' => $data['status'] ?? 'created',
-                'async' => $async ? 1 : 0,
-                'qr_copy_paste' => $data['qrCopyPaste'] ?? null,
-                'qr_image_url' => $data['qrImageUrl'] ?? null,
-                'meta' => isset($data['meta']) ? wp_json_encode($data['meta']) : null,
-            ],
-            [
-                '%s',
-                '%d',
-                '%s',
-                '%d',
-                '%s',
-                '%s',
-                '%s',
-            ]
-        );
+        $amount = isset($data['amountInCents']) ? (int)$data['amountInCents'] : (isset($data['valueInCents']) ? (int)$data['valueInCents'] : (int)$amountInCents);
+        $status = isset($data['status']) ? sanitize_text_field($data['status']) : 'created';
+        $asyncVal = $async ? 1 : 0;
+        $qrCopy = isset($data['qrCopyPaste']) ? $data['qrCopyPaste'] : (isset($data['qr']) ? $data['qr'] : null);
+        $qrImg  = isset($data['qrImageUrl']) ? $data['qrImageUrl'] : (isset($data['qrPngUrl']) ? $data['qrPngUrl'] : null);
+        $meta   = isset($data['meta']) ? wp_json_encode($data['meta']) : wp_json_encode($data);
+
+        $sql = "INSERT INTO `$table` (tx_id, amount_cents, status, async, qr_copy_paste, qr_image_url, meta) 
+            VALUES (%s, %d, %s, %d, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE 
+                amount_cents = VALUES(amount_cents),
+                status = VALUES(status),
+                async = VALUES(async),
+                qr_copy_paste = VALUES(qr_copy_paste),
+                qr_image_url = VALUES(qr_image_url),
+                meta = VALUES(meta)";
+        $wpdb->query($wpdb->prepare($sql, $tx_id, $amount, $status, $asyncVal, $qrCopy, $qrImg, $meta));
     }
 
     public function getTransactionStatus(string $tx_id): ?string
@@ -120,10 +116,25 @@ class DepixTablesWP
                 ['%s']
             );
         }
-        if (!$updated) {
-            error_log('[Depix][DB][Info] Nenhuma linha atualizada para tx_id='.$data['id']);
+        if (false === $updated) {
+            // erro no update
+            error_log('[Depix][DB][Info] Falha no update para tx_id='.$data['id']);
+            return false;
         }
-        return (bool)$updated;    
+        if ($updated > 0) {
+            return true; // alterou algo
+        }
+        // $updated == 0: pode significar que já estava com os mesmos dados; verificar existência
+        $exists = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(1) FROM `$table` WHERE tx_id = %s", sanitize_text_field($data['id'])));
+        if ($exists > 0) {
+            return true; // registro existe, sem alterações
+        }
+        if (!empty($data['qrId'])) {
+            $exists2 = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(1) FROM `$table` WHERE tx_id = %s", sanitize_text_field($data['qrId'])));
+            if ($exists2 > 0) { return true; }
+        }
+        error_log('[Depix][DB][Info] Nenhuma linha atualizada e registro não localizado (tx_id='.$data['id'].')');
+        return false;    
     }
 
 }
